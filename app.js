@@ -229,7 +229,8 @@ def _init(codes):
         g[fn] = getattr(web_bridge, fn)
 `);
     const init = pyodide.globals.get("_init");
-    init(codes);
+    const pyCodes = pyodide.toPy(codes);
+    init(pyCodes);
     init.destroy();
 
     // Get bridge functions
