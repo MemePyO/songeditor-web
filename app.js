@@ -230,8 +230,7 @@ def _init(codes):
                 if name in errors:
                     del errors[name]
             except Exception as e:
-                # Debug: include whether dependency is in sys.modules
-                errors[name] = str(e) + " | basicTypes in sys.modules: " + str("basicTypes_pb2" in sys.modules) + " | num pb2 in sys.modules: " + str(len([k for k in sys.modules if k.endswith("_pb2")]))
+                errors[name] = str(e)
         for name in to_remove:
             del pending[name]
     if pending:
