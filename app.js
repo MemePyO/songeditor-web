@@ -384,6 +384,11 @@ function getLineHeight(el) {
   return lh;
 }
 
+function getPaddingTop(el) {
+  const cs = window.getComputedStyle(el);
+  return parseFloat(cs.paddingTop) || 0;
+}
+
 function ensureHighlightBars() {
   document.querySelectorAll(".editor-grid .col-numbers, .editor-grid .col-text").forEach((col) => {
     if (!col.querySelector(":scope > .hover-bar")) {
@@ -404,13 +409,15 @@ function ensureHighlightBars() {
 
 function refreshHighlight() {
   ensureHighlightBars();
-  const lineH = getLineHeight(document.querySelector(".col-numbers") || document.body);
-  const top = hoveredLine >= 0 ? (hoveredLine * lineH) : 0;
   document.querySelectorAll(".hover-bar").forEach((bar) => {
+    const col = bar.parentElement;
+    const lineH = getLineHeight(col.querySelector("textarea") || col);
+    const pt = getPaddingTop(col);
     if (hoveredLine < 0) {
       bar.classList.remove("visible");
     } else {
       bar.classList.add("visible");
+      const top = pt + hoveredLine * lineH - (col.scrollTop || 0);
       bar.style.top = top + "px";
       bar.style.height = lineH + "px";
     }
@@ -422,7 +429,8 @@ function computeHoveredLine(el, evt) {
   const lineH = getLineHeight(el.tagName === "TEXTAREA" ? el : (el.querySelector("textarea") || el));
   // For textarea, account for scrollTop
   const scrollTop = el.scrollTop || 0;
-  const y = evt.clientY - rect.top + scrollTop;
+  const pt = getPaddingTop(el);
+  const y = evt.clientY - rect.top + scrollTop - pt;
   const idx = Math.floor(y / lineH);
   // clamp to number of lines
   const text = (el.tagName === "TEXTAREA") ? el.value : (el.textContent || "");
