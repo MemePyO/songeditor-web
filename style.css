@@ -102,6 +102,8 @@ main { padding: 16px 24px; }
 }
 .col-text textarea {
   flex: 1;
+  white-space: pre;
+  overflow-x: auto;
   background: #16273d;
   color: #dbe6f5;
   border: 1px solid #2a3f5f;
