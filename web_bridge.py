@@ -1,4 +1,4 @@
-"""JSON-string API over SongEditorPro7Generic.py for the web frontend (runs under Pyodide)."""
+﻿"""JSON-string API over SongEditorPro7Generic.py for the web frontend (runs under Pyodide)."""
 
 import base64
 import json
@@ -8,7 +8,6 @@ import tempfile
 
 # Patch resource_path so it finds files in Pyodide's virtual filesystem
 import SongEditorPro7Generic
-import autocorrect
 
 
 def _resource_path(relative_path):
@@ -20,7 +19,6 @@ def _resource_path(relative_path):
 
 
 SongEditorPro7Generic.resource_path = _resource_path
-autocorrect.resource_path = _resource_path
 
 from SongEditorPro7Generic import gen_pro_data, get_text_block_names, split_slides
 from single_export import gen_single_pro
@@ -68,19 +66,11 @@ def generate_pro_json(song_texts_json, line_count, arrangement_order=""):
         song_texts = json.loads(song_texts_json)
         lc = int(line_count) if line_count else 2
         arr = arrangement_order.strip() if (arrangement_order and arrangement_order.strip()) else None
-        raw = gen_pro_data(
-            get_text_block_names(), song_texts, lc,
-            arrangement_order=arr,
-        )
+        raw = gen_pro_data(get_text_block_names(), song_texts, lc, arrangement_order=arr)
         path = _temp_path()
         with open(path, "wb") as f:
             f.write(raw)
-        return json.dumps({
-            "ok": True,
-            "filename": "song.pro",
-            "mime": MIME,
-            "b64": _read_b64(path),
-        })
+        return json.dumps({"ok": True, "filename": "song.pro", "mime": MIME, "b64": _read_b64(path)})
     except Exception as exc:
         return json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
 
@@ -96,12 +86,7 @@ def generate_single_pro_json(song_texts_json, line_count, arrangement_order="", 
         path = _temp_path().replace(".pro", "_single.pro")
         with open(path, "wb") as f:
             f.write(raw)
-        return json.dumps({
-            "ok": True,
-            "filename": f"{bn} (Single).pro",
-            "mime": MIME,
-            "b64": _read_b64(path),
-        })
+        return json.dumps({"ok": True, "filename": f"{bn} (Single).pro", "mime": MIME, "b64": _read_b64(path)})
     except Exception as exc:
         return json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
 

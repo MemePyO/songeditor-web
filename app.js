@@ -65,7 +65,8 @@ function parseSongTexts() {
   for (const name of state.blockNames) {
     const ta = document.getElementById("ta-" + name);
     if (ta) {
-      result[name] = ta.value.split("\n");
+      result[name] = ta.value.split("
+");
     }
   }
   return result;
@@ -75,7 +76,8 @@ function setSongTexts(data) {
   for (const name of state.blockNames) {
     const ta = document.getElementById("ta-" + name);
     if (ta) {
-      ta.value = (data[name] || []).join("\n");
+      ta.value = (data[name] || []).join("
+");
     }
   }
   syncSingleFromTranslate();
@@ -88,15 +90,18 @@ function updateNumbers() {
   for (const name of state.blockNames) {
     const ta = document.getElementById("ta-" + name);
     if (ta) {
-      const lines = ta.value.split("\n");
+      const lines = ta.value.split("
+");
       if (lines.length > maxLen) maxLen = lines.length;
     }
   }
   // Also single view
-  const singleLines = ui.singleText.value.split("\n").length;
+  const singleLines = ui.singleText.value.split("
+").length;
   if (singleLines > maxLen) maxLen = singleLines;
 
-  const nums = Array.from({ length: maxLen }, (_, i) => i + 1).join("\n");
+  const nums = Array.from({ length: maxLen }, (_, i) => i + 1).join("
+");
   document.querySelectorAll(".col-numbers").forEach((el) => {
     el.textContent = nums;
   });
@@ -166,15 +171,11 @@ function switchTab(tabName) {
 }
 
 async function boot() {
-  setStatus("Loading Python runtime…");
-  try {
     await loadScript(PYODIDE_BASE + "pyodide.js");
     const pyodide = await loadPyodide({ indexURL: PYODIDE_BASE });
     state.pyodide = pyodide;
     setStatus("Installing protobuf…");
-    await pyodide.loadPackage("micropip");
-    await pyodide.runPythonAsync('import micropip\nawait micropip.install("protobuf")');
-
+    await pyodide.loadPackage("protobuf");
     setStatus("Loading app files…");
     // Fetch Python files
     const files = [
@@ -185,8 +186,7 @@ async function boot() {
       "messages_pb2.py", "presentationSlide_pb2.py", "propSlide_pb2.py",
       "rvtimestamp_pb2.py", "slide_pb2.py", "stage_pb2.py",
       "templateIdentification_pb2.py", "timers_pb2.py",
-      "SongEditorPro7Generic.py", "single_export.py", "autocorrect.py",
-      "web_bridge.py",
+      "SongEditorPro7Generic.py", "single_export.py", "web_bridge.py",
     ];
     const codes = {};
     for (const f of files) {
@@ -245,7 +245,8 @@ def _init(codes):
     // Get group names
     const groupsResult = JSON.parse(state.bridge.getGroupNames());
     if (groupsResult.ok) {
-      loadGroupNames(groupsResult.labels.join("\n"));
+      loadGroupNames(groupsResult.labels.join("
+"));
     }
 
     // Build UI
