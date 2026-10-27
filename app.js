@@ -421,7 +421,7 @@ function computeHoveredLine(el, evt) {
   const rect = el.getBoundingClientRect();
   const lineH = getLineHeight(el.tagName === "TEXTAREA" ? el : (el.querySelector("textarea") || el));
   // For textarea, account for scrollTop
-  const scrollTop = (el.tagName === "TEXTAREA") ? el.scrollTop : 0;
+  const scrollTop = el.scrollTop || 0;
   const y = evt.clientY - rect.top + scrollTop;
   const idx = Math.floor(y / lineH);
   // clamp to number of lines
