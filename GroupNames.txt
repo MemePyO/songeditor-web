@@ -1,0 +1,17 @@
+Verse
+Verse 1..30
+Chorus
+Chorus 1..10
+Bridge
+Bridge 1..10
+Pre-Chorus 1..10
+Tag
+Intro
+Intro 1..10
+Ending
+Ending 1..10
+Outro
+Interlude
+Vamp
+Turnaround
+Blank
