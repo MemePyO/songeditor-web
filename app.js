@@ -217,7 +217,7 @@ def _init(codes):
     pending = dict(codes)
     loaded = set()
     progress = True
-    last_error = None
+    errors = {}
     while pending and progress:
         progress = False
         to_remove = []
@@ -227,17 +227,15 @@ def _init(codes):
                 to_remove.append(name)
                 loaded.add(name)
                 progress = True
+                if name in errors:
+                    del errors[name]
             except Exception as e:
-                last_error = e
+                errors[name] = str(e)
         for name in to_remove:
             del pending[name]
     if pending:
-        # Report the first failing module
-        name = next(iter(pending))
-        try:
-            _load_module(name.replace(".py", ""), pending[name])
-        except Exception as e:
-            raise RuntimeError("Failed to load " + name + ": " + str(e))
+        detail = "; ".join(sorted(name + " => " + errors.get(name, "?") for name in pending))
+        raise RuntimeError("Stuck modules: " + detail)
     import web_bridge
     g = globals()
     for fn in ("get_text_block_names_json", "get_group_names_json",
