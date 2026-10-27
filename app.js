@@ -212,13 +212,30 @@ def _load_module(name, code):
     return mod
 
 def _init(codes):
-    ordered = sorted(codes.keys(), key=lambda n: (0 if n.endswith("_pb2.py") else 1, n))
-    if "presentation_pb2.py" in ordered:
-        ordered.remove("presentation_pb2.py")
-        ordered.append("presentation_pb2.py")
-    for name in ordered:
+    # Load modules with dependency resolution via retry passes.
+    # (Protobuf-generated modules import each other; alphabetical order fails.)
+    pending = dict(codes)
+    loaded = set()
+    progress = True
+    last_error = None
+    while pending and progress:
+        progress = False
+        to_remove = []
+        for name, code in list(pending.items()):
+            try:
+                _load_module(name.replace(".py", ""), code)
+                to_remove.append(name)
+                loaded.add(name)
+                progress = True
+            except Exception as e:
+                last_error = e
+        for name in to_remove:
+            del pending[name]
+    if pending:
+        # Report the first failing module
+        name = next(iter(pending))
         try:
-            _load_module(name.replace(".py", ""), codes[name])
+            _load_module(name.replace(".py", ""), pending[name])
         except Exception as e:
             raise RuntimeError("Failed to load " + name + ": " + str(e))
     import web_bridge
