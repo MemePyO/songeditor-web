@@ -1,4 +1,4 @@
-﻿"""JSON-string API over SongEditorPro7Generic.py for the web frontend (runs under Pyodide)."""
+"""JSON-string API over SongEditorPro7Generic.py for the web frontend (runs under Pyodide)."""
 
 import base64
 import json

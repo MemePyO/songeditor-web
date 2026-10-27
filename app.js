@@ -215,8 +215,15 @@ def _load_module(name, code):
     return mod
 
 def _init(codes):
-    for name, code in codes.items():
-        _load_module(name.replace(".py", ""), code)
+    ordered = sorted(codes.keys(), key=lambda n: (0 if n.endswith("_pb2.py") else 1, n))
+    if "presentation_pb2.py" in ordered:
+        ordered.remove("presentation_pb2.py")
+        ordered.append("presentation_pb2.py")
+    for name in ordered:
+        try:
+            _load_module(name.replace(".py", ""), codes[name])
+        except Exception as e:
+            raise RuntimeError("Failed to load " + name + ": " + str(e))
     import web_bridge
     g = globals()
     for fn in ("get_text_block_names_json", "get_group_names_json",
@@ -245,8 +252,7 @@ def _init(codes):
     // Get group names
     const groupsResult = JSON.parse(state.bridge.getGroupNames());
     if (groupsResult.ok) {
-      loadGroupNames(groupsResult.labels.join("
-"));
+       loadGroupNames(groupsResult.labels.join("\n"));
     }
 
     // Build UI
