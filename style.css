@@ -148,5 +148,3 @@ main { padding: 16px 24px; }
   .editor-grid { flex-direction: column; height: auto; }
   .col-numbers { width: 100%; height: 40px; }
 }
-PYEOF
-Write-Output "style.css created"

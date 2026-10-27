@@ -1,4 +1,0 @@
-# Autocorrect word list — one replacement per line: wrong=correct
-# Lines starting with # are comments.
-# Example:
-# Isus, Isus=Isus, Isus

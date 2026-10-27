@@ -1,6 +1,6 @@
 "use strict";
 
-const PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/";
+const PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
 
 const $ = (id) => document.getElementById(id);
 
@@ -353,4 +353,3 @@ function switchTab(name) {
 
 // Init
 document.addEventListener("DOMContentLoaded", boot);
-PYEOF
