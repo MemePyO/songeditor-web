@@ -65,8 +65,7 @@ function parseSongTexts() {
   for (const name of state.blockNames) {
     const ta = document.getElementById("ta-" + name);
     if (ta) {
-      result[name] = ta.value.split("
-");
+      result[name] = ta.value.split("\n");
     }
   }
   return result;
@@ -76,8 +75,7 @@ function setSongTexts(data) {
   for (const name of state.blockNames) {
     const ta = document.getElementById("ta-" + name);
     if (ta) {
-      ta.value = (data[name] || []).join("
-");
+      ta.value = (data[name] || []).join("\n");
     }
   }
   syncSingleFromTranslate();
@@ -90,18 +88,15 @@ function updateNumbers() {
   for (const name of state.blockNames) {
     const ta = document.getElementById("ta-" + name);
     if (ta) {
-      const lines = ta.value.split("
-");
+      const lines = ta.value.split("\\n");
       if (lines.length > maxLen) maxLen = lines.length;
     }
   }
   // Also single view
-  const singleLines = ui.singleText.value.split("
-").length;
+  const singleLines = ui.singleText.value.split("\\n");
   if (singleLines > maxLen) maxLen = singleLines;
 
-  const nums = Array.from({ length: maxLen }, (_, i) => i + 1).join("
-");
+  const nums = Array.from({ length: maxLen }, (_, i) => i + 1).join("\\n");
   document.querySelectorAll(".col-numbers").forEach((el) => {
     el.textContent = nums;
   });
@@ -171,6 +166,8 @@ function switchTab(tabName) {
 }
 
 async function boot() {
+  setStatus("Loading Python runtime…");
+  try {
     await loadScript(PYODIDE_BASE + "pyodide.js");
     const pyodide = await loadPyodide({ indexURL: PYODIDE_BASE });
     state.pyodide = pyodide;
@@ -188,10 +185,10 @@ async function boot() {
       "templateIdentification_pb2.py", "timers_pb2.py",
       "SongEditorPro7Generic.py", "single_export.py", "web_bridge.py",
     ];
+    setStatus("Downloading app modules...");
+    const results = await Promise.all(files.map(f => fetch(f).then(r => r.text())));
     const codes = {};
-    for (const f of files) {
-      codes[f] = await (await fetch(f)).text();
-    }
+    files.forEach((f, i) => { codes[f] = results[i]; });
 
     // Fetch Template.pro and GroupNames.txt as binary/text
     const templateResp = await fetch("Template.pro");
@@ -357,4 +354,3 @@ function switchTab(name) {
 // Init
 document.addEventListener("DOMContentLoaded", boot);
 PYEOF
-Write-Output "app.js created"
