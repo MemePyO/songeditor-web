@@ -148,3 +148,21 @@ main { padding: 16px 24px; }
   .editor-grid { flex-direction: column; height: auto; }
   .col-numbers { width: 100%; height: 40px; }
 }
+
+/* Hover highlight overlay for row correspondence */
+.editor-grid .col-numbers,
+.editor-grid .col-text {
+  position: relative;
+}
+.hover-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(0, 128, 96, 0.35);
+  border-top: 1px solid rgba(0, 200, 150, 0.6);
+  border-bottom: 1px solid rgba(0, 200, 150, 0.6);
+  pointer-events: none;
+  display: none;
+  z-index: 5;
+}
+.hover-bar.visible { display: block; }

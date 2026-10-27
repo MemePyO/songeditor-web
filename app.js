@@ -88,18 +88,20 @@ function updateNumbers() {
   for (const name of state.blockNames) {
     const ta = document.getElementById("ta-" + name);
     if (ta) {
-      const lines = ta.value.split("\\n");
+      const lines = ta.value.split("\n");
       if (lines.length > maxLen) maxLen = lines.length;
     }
   }
   // Also single view
-  const singleLines = ui.singleText.value.split("\\n");
-  if (singleLines > maxLen) maxLen = singleLines;
+  const singleLines = ui.singleText.value.split("\n");
+  if (singleLines.length > maxLen) maxLen = singleLines.length;
 
-  const nums = Array.from({ length: maxLen }, (_, i) => i + 1).join("\\n");
+  const nums = Array.from({ length: maxLen }, (_, i) => i + 1).join("\n");
   document.querySelectorAll(".col-numbers").forEach((el) => {
     el.textContent = nums;
   });
+  // refresh highlight overlay sizing
+  if (typeof refreshHighlight === "function") refreshHighlight();
 }
 
 function syncSingleFromTranslate() {
@@ -366,6 +368,156 @@ function switchTab(name) {
     updateNumbers();
   }
 }
+
+// ---------------------------------------------------------
+// HOVER HIGHLIGHT + SCROLL SYNC (row correspondence)
+// ---------------------------------------------------------
+let hoveredLine = -1; // 0-based visual line index
+
+function getLineHeight(el) {
+  const cs = window.getComputedStyle(el);
+  let lh = parseFloat(cs.lineHeight);
+  if (isNaN(lh)) {
+    const fs = parseFloat(cs.fontSize) || 13;
+    lh = fs * 1.5;
+  }
+  return lh;
+}
+
+function ensureHighlightBars() {
+  document.querySelectorAll(".editor-grid .col-numbers, .editor-grid .col-text").forEach((col) => {
+    if (!col.querySelector(":scope > .hover-bar")) {
+      const bar = document.createElement("div");
+      bar.className = "hover-bar";
+      col.appendChild(bar);
+    }
+  });
+  // single view
+  document.querySelectorAll(".single-grid .col-numbers, .single-grid .col-text").forEach((col) => {
+    if (!col.querySelector(":scope > .hover-bar")) {
+      const bar = document.createElement("div");
+      bar.className = "hover-bar";
+      col.appendChild(bar);
+    }
+  });
+}
+
+function refreshHighlight() {
+  ensureHighlightBars();
+  const lineH = getLineHeight(document.querySelector(".col-numbers") || document.body);
+  const top = hoveredLine >= 0 ? (hoveredLine * lineH) : 0;
+  document.querySelectorAll(".hover-bar").forEach((bar) => {
+    if (hoveredLine < 0) {
+      bar.classList.remove("visible");
+    } else {
+      bar.classList.add("visible");
+      bar.style.top = top + "px";
+      bar.style.height = lineH + "px";
+    }
+  });
+}
+
+function computeHoveredLine(el, evt) {
+  const rect = el.getBoundingClientRect();
+  const lineH = getLineHeight(el.tagName === "TEXTAREA" ? el : (el.querySelector("textarea") || el));
+  // For textarea, account for scrollTop
+  const scrollTop = (el.tagName === "TEXTAREA") ? el.scrollTop : 0;
+  const y = evt.clientY - rect.top + scrollTop;
+  const idx = Math.floor(y / lineH);
+  // clamp to number of lines
+  const text = (el.tagName === "TEXTAREA") ? el.value : (el.textContent || "");
+  const lines = text.split("\n");
+  const maxIdx = Math.max(0, lines.length - 1);
+  return Math.max(0, Math.min(idx, maxIdx));
+}
+
+function attachHighlightHandlers() {
+  // translate view
+  const grid = document.getElementById("translate-grid");
+  if (grid) {
+    grid.querySelectorAll(".col-numbers, .col-text textarea").forEach((el) => {
+      el.addEventListener("mousemove", (e) => {
+        const target = (el.tagName === "TEXTAREA") ? el : el;
+        hoveredLine = computeHoveredLine(target, e);
+        refreshHighlight();
+      });
+      el.addEventListener("mouseleave", () => {
+        hoveredLine = -1;
+        refreshHighlight();
+      });
+      if (el.tagName === "TEXTAREA") {
+        el.addEventListener("scroll", () => refreshHighlight());
+      } else {
+        el.addEventListener("scroll", () => refreshHighlight());
+      }
+    });
+  }
+  // single view
+  const singleTa = document.getElementById("single-text");
+  const singleNums = document.getElementById("single-numbers");
+  [singleTa, singleNums].forEach((el) => {
+    if (!el) return;
+    el.addEventListener("mousemove", (e) => {
+      hoveredLine = computeHoveredLine(el.tagName === "TEXTAREA" ? el : el, e);
+      refreshHighlight();
+    });
+    el.addEventListener("mouseleave", () => {
+      hoveredLine = -1;
+      refreshHighlight();
+    });
+    el.addEventListener("scroll", () => refreshHighlight());
+  });
+}
+
+// Scroll sync across columns
+function syncScroll(source) {
+  const cols = [];
+  const grid = document.getElementById("translate-grid");
+  if (grid) {
+    grid.querySelectorAll(".col-numbers, .col-text textarea").forEach((el) => cols.push(el));
+  }
+  const st = source.scrollTop;
+  cols.forEach((el) => {
+    if (el !== source) el.scrollTop = st;
+  });
+  refreshHighlight();
+}
+
+function attachScrollSync() {
+  const grid = document.getElementById("translate-grid");
+  if (grid) {
+    grid.querySelectorAll(".col-numbers, .col-text textarea").forEach((el) => {
+      el.addEventListener("scroll", () => syncScroll(el));
+    });
+  }
+  const singleTa = document.getElementById("single-text");
+  const singleNums = document.getElementById("single-numbers");
+  [singleTa, singleNums].forEach((el) => {
+    if (!el) return;
+    el.addEventListener("scroll", () => {
+      const other = el === singleTa ? singleNums : singleTa;
+      if (other) other.scrollTop = el.scrollTop;
+      refreshHighlight();
+    });
+  });
+}
+
+// Wrap buildTranslateGrid to attach handlers after render
+const _origBuildTranslateGrid = buildTranslateGrid;
+buildTranslateGrid = function() {
+  _origBuildTranslateGrid();
+  // attach after DOM update
+  setTimeout(() => {
+    ensureHighlightBars();
+    attachHighlightHandlers();
+    attachScrollSync();
+  }, 0);
+};
+
+// Also handle single view tab switch
+const _origSwitchTab = switchTab;
+// (switchTab defined later; patch after load via DOMContentLoaded? Instead patch at end of boot not needed.)
+
 
 // Init
 document.addEventListener("DOMContentLoaded", boot);
