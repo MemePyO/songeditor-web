@@ -18,8 +18,9 @@
     <section class="toolbar">
       <div class="toolbar-row">
         <label>Song Name:
-          <input id="song-name" type="text" placeholder="My Song" value="">
+          <input id="song-name" type="text" placeholder="My Song" list="song-names" autocomplete="off" value="">
         </label>
+        <datalist id="song-names"></datalist>
         <label>Lines per Slide:
           <input id="line-count" type="number" min="1" max="10" value="2" style="width:60px">
         </label>
@@ -27,6 +28,7 @@
           <input id="arrangement" type="text" value="Verse 1, Chorus, Verse 2, Chorus" style="width:320px">
         </label>
         <button id="btn-open" class="btn">Open JSON</button>
+        <button id="btn-import" class="btn">Import Saved</button>
         <button id="btn-save" class="btn btn-primary">Save (.pro + .json)</button>
         <button id="btn-single" class="btn btn-secondary">Download as Single</button>
       </div>
@@ -67,6 +69,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

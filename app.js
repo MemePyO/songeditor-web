@@ -18,6 +18,7 @@ const ui = {
   lineCount: $("line-count"),
   arrangement: $("arrangement"),
   btnOpen: $("btn-open"),
+  btnImport: $("btn-import"),
   btnSave: $("btn-save"),
   btnSingle: $("btn-single"),
   fileOpen: $("file-open"),
@@ -33,6 +34,69 @@ const ui = {
 
 function setStatus(msg) {
   ui.status.textContent = msg;
+}
+
+// ---------------------------------------------------------
+// SONG DATABASE (localStorage) — mirrors desktop "Melodii"
+// ---------------------------------------------------------
+const SONG_DB_KEY = "songeditor.songs.v1";
+
+function readSongDB() {
+  try {
+    const raw = localStorage.getItem(SONG_DB_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return obj && typeof obj === "object" ? obj : {};
+  } catch (e) {
+    console.warn("Song DB read failed", e);
+    return {};
+  }
+}
+
+function writeSongDB(db) {
+  try {
+    localStorage.setItem(SONG_DB_KEY, JSON.stringify(db));
+    return true;
+  } catch (e) {
+    console.warn("Song DB write failed", e);
+    return false;
+  }
+}
+
+function listSongNames() {
+  return Object.keys(readSongDB()).sort((a, b) => a.localeCompare(b));
+}
+
+function saveSongToDB(title, songTexts) {
+  if (!title) return false;
+  const db = readSongDB();
+  const clean = {};
+  for (const k of Object.keys(songTexts)) {
+    if (k !== "_title") clean[k] = songTexts[k];
+  }
+  db[title] = { texts: clean, savedAt: Date.now() };
+  return writeSongDB(db);
+}
+
+function loadSongFromDB(title) {
+  const db = readSongDB();
+  if (db[title]) return { title, texts: db[title].texts };
+  const lower = title.toLowerCase();
+  const found = Object.keys(db).find((k) => k.toLowerCase() === lower);
+  if (!found) return null;
+  return { title: found, texts: db[found].texts };
+}
+
+function refreshSongAutocomplete() {
+  const dl = document.getElementById("song-names");
+  if (!dl) return;
+  const names = listSongNames();
+  dl.innerHTML = "";
+  for (const n of names) {
+    const opt = document.createElement("option");
+    opt.value = n;
+    dl.appendChild(opt);
+  }
 }
 
 function downloadBlob(b64, filename, mime) {
@@ -272,6 +336,7 @@ def _init(codes):
 
     // Build UI
     buildTranslateGrid();
+    refreshSongAutocomplete();
     state.ready = true;
     setStatus("Ready");
   } catch (err) {
@@ -328,7 +393,25 @@ ui.btnSave.addEventListener("click", () => {
     JSON.stringify(songTexts), ui.lineCount.value, ui.arrangement.value));
   if (!r.ok) { setStatus("Save failed: " + r.error); return; }
   downloadBlob(r.b64, r.filename.replace("song.pro", title + ".pro"), r.mime);
-  setStatus("Saved! Downloaded " + title + ".pro and " + title + ".json");
+  // Save to the local song database (autocomplete + Import Saved)
+  const stored = saveSongToDB(title, songTexts);
+  refreshSongAutocomplete();
+  setStatus(
+    "Saved! Downloaded " + title + ".pro and " + title + ".json" +
+    (stored ? " · saved to this browser" : " · browser storage unavailable")
+  );
+});
+
+// Import a song saved in this browser's song database
+ui.btnImport.addEventListener("click", () => {
+  if (!state.ready) { setStatus("Still loading…"); return; }
+  const title = ui.songName.value.trim();
+  if (!title) { setStatus("Type or pick a song name to import."); return; }
+  const found = loadSongFromDB(title);
+  if (!found) { setStatus("No saved song named '" + title + "' in this browser."); return; }
+  ui.songName.value = found.title;
+  setSongTexts(found.texts);
+  setStatus("Imported: " + found.title);
 });
 
 // Download as Single
@@ -528,4 +611,16 @@ const _origSwitchTab = switchTab;
 
 
 // Init
-document.addEventListener("DOMContentLoaded", boot);
+document.addEventListener("DOMContentLoaded", () => {
+  refreshSongAutocomplete();
+  boot();
+});
+
+// Register the service worker for offline support
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("sw.js")
+      .catch((err) => console.warn("Service worker registration failed:", err));
+  });
+}
