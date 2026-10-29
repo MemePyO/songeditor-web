@@ -36,6 +36,20 @@ main { padding: 16px 24px; }
   padding: 6px 8px;
   font-size: 13px;
 }
+.toolbar-files {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #24364f;
+}
+.toolbar-label { font-size: 12px; color: #8fa8cc; text-transform: uppercase; letter-spacing: 0.04em; }
+.file-info {
+  font-size: 12px;
+  color: #9fc2ee;
+  background: #0f1b2d;
+  border: 1px solid #24364f;
+  border-radius: 4px;
+  padding: 5px 9px;
+}
 .btn {
   background: #2a3f5f;
   color: #dbe6f5;

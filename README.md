@@ -12,6 +12,7 @@ in your browser via [Pyodide](https://pyodide.org) + `protobuf`, generating
 - **Single View** — focused editor mirroring the Romanian block
 - **Download as Single** — exports a `.pro` with only the Romanian text block
 - **Group Names editor** — edit `GroupNames.txt` in-browser
+- **Custom Template.pro / GroupNames.txt** — pick your own files; they are remembered in this browser and used for every export
 - **Open / Save** — load `.json` backups, download `.pro` + `.json`
 - **Offline** — works without internet after first visit (service worker)
 - **Installable** — add to home screen

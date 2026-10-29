@@ -11,6 +11,10 @@ const state = {
   blockNames: [],
   groupNames: "",
   syncing: false,
+  template: null,   // { name, builtin, blocks }
+  groups: null,     // { name, builtin }
+  builtinTemplateB64: "",
+  builtinGroupsText: "",
 };
 
 const ui = {
@@ -21,6 +25,13 @@ const ui = {
   btnImport: $("btn-import"),
   btnSave: $("btn-save"),
   btnSingle: $("btn-single"),
+  btnTemplate: $("btn-template"),
+  btnGroupsFile: $("btn-groups-file"),
+  btnResetFiles: $("btn-reset-files"),
+  fileTemplate: $("file-template"),
+  fileGroups: $("file-groups"),
+  fileInfo: $("file-info"),
+  btnDownloadGroups: $("btn-download-groups"),
   fileOpen: $("file-open"),
   translateGrid: $("translate-grid"),
   singleNumbers: $("single-numbers"),
@@ -97,6 +108,110 @@ function refreshSongAutocomplete() {
     opt.value = n;
     dl.appendChild(opt);
   }
+}
+
+// ---------------------------------------------------------
+// PROPRESENTER FILES (Template.pro / GroupNames.txt)
+// Remembered in localStorage so a chosen file survives reloads.
+// ---------------------------------------------------------
+const STORAGE = {
+  template: "songeditor.template.v1",
+  groups: "songeditor.groupnames.v1",
+};
+
+function readStored(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    console.warn("Storage read failed for " + key, e);
+    return null;
+  }
+}
+
+function writeStored(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (e) {
+    console.warn("Storage write failed for " + key, e);
+    return false;
+  }
+}
+
+function clearStored(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (e) {
+    console.warn("Storage remove failed for " + key, e);
+  }
+}
+
+function bytesToB64(bytes) {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function b64ToBytes(b64) {
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+// localStorage holds roughly 5 MB of text; base64 inflates by ~33%.
+const MAX_REMEMBER_B64 = 3500000;
+
+function rememberTemplate(name, b64) {
+  if (b64.length > MAX_REMEMBER_B64) return false;
+  return writeStored(STORAGE.template, { name, b64, savedAt: Date.now() });
+}
+
+function rememberGroups(name, text) {
+  if (text.length > MAX_REMEMBER_B64) return false;
+  return writeStored(STORAGE.groups, { name, text, savedAt: Date.now() });
+}
+
+function refreshFileInfo() {
+  if (!ui.fileInfo) return;
+  const t = state.template;
+  const g = state.groups;
+  const tLabel = t
+    ? `${t.name}${t.builtin ? " (built-in)" : ""} · ${t.blocks} block${t.blocks === 1 ? "" : "s"}`
+    : "…";
+  const gLabel = g ? `${g.name}${g.builtin ? " (built-in)" : ""}` : "…";
+  ui.fileInfo.textContent = `Template: ${tLabel}   ·   Groups: ${gLabel}`;
+}
+
+// Swap the template in the running Python runtime, keeping typed text where
+// the block names still exist.
+function applyTemplateB64(b64) {
+  if (!state.ready) return { ok: false, error: "still loading" };
+  const r = JSON.parse(state.bridge.setTemplate(b64));
+  if (!r.ok) return r;
+  const typed = {};
+  for (const n of state.blockNames) {
+    const ta = document.getElementById("ta-" + n);
+    if (ta) typed[n] = ta.value;
+  }
+  state.blockNames = r.names;
+  buildTranslateGrid();
+  for (const n of r.names) {
+    const ta = document.getElementById("ta-" + n);
+    if (ta && typed[n] !== undefined) ta.value = typed[n];
+  }
+  updateNumbers();
+  syncSingleFromTranslate();
+  return r;
+}
+
+function applyGroupNamesText(text) {
+  if (!state.ready) return { ok: false, error: "still loading" };
+  const r = JSON.parse(state.bridge.setGroups(text));
+  if (!r.ok) return r;
+  loadGroupNames(r.labels.join("\n"));
+  return r;
 }
 
 function downloadBlob(b64, filename, mime) {
@@ -259,8 +374,10 @@ async function boot() {
     // Fetch Template.pro and GroupNames.txt as binary/text
     const templateResp = await fetch("Template.pro");
     const templateBuf = await templateResp.arrayBuffer();
-    const templateB64 = btoa(String.fromCharCode(...new Uint8Array(templateBuf)));
+    const templateB64 = bytesToB64(new Uint8Array(templateBuf));
     const groupNamesText = await (await fetch("GroupNames.txt")).text();
+    state.builtinTemplateB64 = templateB64;
+    state.builtinGroupsText = groupNamesText;
 
     // Write files to Pyodide FS
     pyodide.FS.writeFile("Template.pro", new Uint8Array(templateBuf));
@@ -306,7 +423,8 @@ def _init(codes):
     g = globals()
     for fn in ("get_text_block_names_json", "get_group_names_json",
                "generate_pro_json", "generate_single_pro_json",
-               "split_slides_json"):
+               "split_slides_json", "set_template_b64_json",
+               "set_group_names_json"):
         g[fn] = getattr(web_bridge, fn)
 `);
     const init = pyodide.globals.get("_init");
@@ -321,22 +439,68 @@ def _init(codes):
       generatePro: pyodide.globals.get("generate_pro_json"),
       generateSingle: pyodide.globals.get("generate_single_pro_json"),
       splitSlides: pyodide.globals.get("split_slides_json"),
+      setTemplate: pyodide.globals.get("set_template_b64_json"),
+      setGroups: pyodide.globals.get("set_group_names_json"),
     };
 
-    // Get text block names
-    const namesResult = JSON.parse(state.bridge.getTextBlockNames());
-    if (!namesResult.ok) throw new Error(namesResult.error);
-    state.blockNames = namesResult.names;
+    // Text block names: a remembered template wins over the built-in one.
+    let blockNames = null;
+    const savedTemplate = readStored(STORAGE.template);
+    if (savedTemplate && savedTemplate.b64) {
+      const applied = JSON.parse(state.bridge.setTemplate(savedTemplate.b64));
+      if (applied.ok) {
+        blockNames = applied.names;
+        state.template = {
+          name: savedTemplate.name || "Template.pro",
+          builtin: false,
+          blocks: applied.names.length,
+        };
+      } else {
+        clearStored(STORAGE.template);
+        console.warn("Remembered template rejected:", applied.error);
+      }
+    }
+    if (!blockNames) {
+      const namesResult = JSON.parse(state.bridge.getTextBlockNames());
+      if (!namesResult.ok) throw new Error(namesResult.error);
+      blockNames = namesResult.names;
+      state.template = {
+        name: "Template.pro",
+        builtin: true,
+        blocks: blockNames.length,
+      };
+    }
+    state.blockNames = blockNames;
 
-    // Get group names
-    const groupsResult = JSON.parse(state.bridge.getGroupNames());
-    if (groupsResult.ok) {
-       loadGroupNames(groupsResult.labels.join("\n"));
+    // Group names: remembered labels win over the built-in file.
+    const savedGroups = readStored(STORAGE.groups);
+    let groupsApplied = false;
+    if (savedGroups && savedGroups.text) {
+      const applied = JSON.parse(state.bridge.setGroups(savedGroups.text));
+      if (applied.ok) {
+        loadGroupNames(applied.labels.join("\n"));
+        state.groups = {
+          name: savedGroups.name || "GroupNames.txt",
+          builtin: false,
+        };
+        groupsApplied = true;
+      } else {
+        clearStored(STORAGE.groups);
+        console.warn("Remembered group names rejected:", applied.error);
+      }
+    }
+    if (!groupsApplied) {
+      const groupsResult = JSON.parse(state.bridge.getGroupNames());
+      if (groupsResult.ok) {
+        loadGroupNames(groupsResult.labels.join("\n"));
+      }
+      state.groups = { name: "GroupNames.txt", builtin: true };
     }
 
     // Build UI
     buildTranslateGrid();
     refreshSongAutocomplete();
+    refreshFileInfo();
     state.ready = true;
     setStatus("Ready");
   } catch (err) {
@@ -431,10 +595,97 @@ ui.btnSingle.addEventListener("click", () => {
   setStatus("Downloaded " + title + " (Single).pro");
 });
 
+// ---------------------------------------------------------
+// CHOOSE TEMPLATE / GROUP NAMES FILES
+// ---------------------------------------------------------
+ui.btnTemplate.addEventListener("click", () => {
+  if (!state.ready) { setStatus("Still loading…"); return; }
+  ui.fileTemplate.click();
+});
+
+ui.fileTemplate.addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const b64 = bytesToB64(bytes);
+    const r = applyTemplateB64(b64);
+    if (!r.ok) {
+      setStatus("Template rejected: " + r.error);
+      return;
+    }
+    const remembered = rememberTemplate(file.name, b64);
+    state.template = { name: file.name, builtin: false, blocks: r.names.length };
+    refreshFileInfo();
+    setStatus(
+      `Template: ${file.name} · ${r.names.length} text block(s): ${r.names.join(", ")}` +
+      (remembered ? " · remembered in this browser" : " · too large to remember (active until reload)")
+    );
+  } catch (err) {
+    setStatus("Could not read template: " + err.message);
+  }
+});
+
+ui.btnGroupsFile.addEventListener("click", () => {
+  if (!state.ready) { setStatus("Still loading…"); return; }
+  ui.fileGroups.click();
+});
+
+ui.fileGroups.addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const r = applyGroupNamesText(text);
+    if (!r.ok) {
+      setStatus("Group names rejected: " + r.error);
+      return;
+    }
+    const remembered = rememberGroups(file.name, text);
+    state.groups = { name: file.name, builtin: false };
+    refreshFileInfo();
+    setStatus(
+      `Group names: ${file.name} · ${r.labels.length} label(s)` +
+      (remembered ? " · remembered in this browser" : " · too large to remember (active until reload)")
+    );
+  } catch (err) {
+    setStatus("Could not read group names: " + err.message);
+  }
+});
+
+ui.btnResetFiles.addEventListener("click", () => {
+  if (!state.ready) { setStatus("Still loading…"); return; }
+  clearStored(STORAGE.template);
+  clearStored(STORAGE.groups);
+  const t = applyTemplateB64(state.builtinTemplateB64);
+  if (!t.ok) { setStatus("Reset failed: " + t.error); return; }
+  const g = applyGroupNamesText(state.builtinGroupsText);
+  if (!g.ok) { setStatus("Reset failed: " + g.error); return; }
+  state.template = { name: "Template.pro", builtin: true, blocks: t.names.length };
+  state.groups = { name: "GroupNames.txt", builtin: true };
+  refreshFileInfo();
+  setStatus("Back to the built-in Template.pro and GroupNames.txt");
+});
+
 // Save group names
 ui.btnSaveGroups.addEventListener("click", () => {
+  if (!state.ready) { setStatus("Still loading…"); return; }
+  const r = applyGroupNamesText(ui.groupNames.value);
+  if (!r.ok) { setStatus("Group names rejected: " + r.error); return; }
+  const remembered = rememberGroups("GroupNames.txt (edited)", ui.groupNames.value);
+  state.groups = { name: "GroupNames.txt (edited)", builtin: false };
+  refreshFileInfo();
+  setStatus(
+    `Group names applied · ${r.labels.length} label(s)` +
+    (remembered ? " · remembered in this browser" : " · too large to remember (active until reload)")
+  );
+});
+
+ui.btnDownloadGroups.addEventListener("click", () => {
   downloadText(ui.groupNames.value, "GroupNames.txt", "text/plain");
-  setStatus("GroupNames.txt downloaded — replace the file in your folder");
+  setStatus("GroupNames.txt downloaded");
 });
 
 // Single view sync

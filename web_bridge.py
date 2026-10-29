@@ -61,6 +61,74 @@ def get_group_names_json():
         return json.dumps({"ok": False, "error": str(exc)})
 
 
+def _write_resource(name, data):
+    """Overwrite the file the generator reads, where it already lives."""
+    path = _resource_path(name)
+    if not os.path.isabs(path):
+        path = os.path.join(os.getcwd(), name)
+    with open(path, "wb") as fh:
+        fh.write(data)
+    return path
+
+
+def set_template_b64_json(b64):
+    """Install a user-chosen Template.pro and return its text block names.
+
+    The previous template is restored if the new one cannot be parsed, so a
+    bad file can never break exports that were working before.
+    """
+    path = None
+    previous = None
+    try:
+        data = base64.b64decode(b64 or "")
+        if not data:
+            raise ValueError("the file is empty")
+        path = _resource_path("Template.pro")
+        if not os.path.isabs(path):
+            path = os.path.join(os.getcwd(), "Template.pro")
+        if os.path.exists(path):
+            with open(path, "rb") as fh:
+                previous = fh.read()
+        with open(path, "wb") as fh:
+            fh.write(data)
+        names = get_text_block_names()
+        if not names:
+            raise ValueError("no text blocks found in this template")
+        return json.dumps({"ok": True, "names": names})
+    except Exception as exc:
+        if path and previous is not None:
+            try:
+                with open(path, "wb") as fh:
+                    fh.write(previous)
+            except OSError:
+                pass
+        return json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+
+
+def _validate_labels(labels):
+    for label in labels:
+        if ".." in label:
+            parts = label.split(" ")
+            if len(parts) != 2:
+                raise ValueError(f"bad range (expected 'Verse 1..3'): {label}")
+            start, sep, end = parts[1].partition("..")
+            if not sep or not start.isdigit() or not end.isdigit():
+                raise ValueError(f"bad range (expected 'Verse 1..3'): {label}")
+
+
+def set_group_names_json(text):
+    """Install user-chosen section labels (one per line) and return them."""
+    try:
+        labels = [line.strip() for line in (text or "").splitlines() if line.strip()]
+        if not labels:
+            raise ValueError("no labels found")
+        _validate_labels(labels)
+        _write_resource("GroupNames.txt", ("\n".join(labels) + "\n").encode("utf-8"))
+        return json.dumps({"ok": True, "labels": labels})
+    except Exception as exc:
+        return json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+
+
 def generate_pro_json(song_texts_json, line_count, arrangement_order=""):
     try:
         song_texts = json.loads(song_texts_json)

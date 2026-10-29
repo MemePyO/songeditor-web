@@ -33,6 +33,15 @@
         <button id="btn-single" class="btn btn-secondary">Download as Single</button>
       </div>
       <input type="file" id="file-open" accept=".json" style="display:none">
+      <div class="toolbar-row toolbar-files">
+        <span class="toolbar-label">ProPresenter files:</span>
+        <button id="btn-template" class="btn">Choose Template…</button>
+        <button id="btn-groups-file" class="btn">Choose Group Names…</button>
+        <button id="btn-reset-files" class="btn">Reset to built-in</button>
+        <span id="file-info" class="file-info">Template: … · Groups: …</span>
+      </div>
+      <input type="file" id="file-template" accept=".pro" style="display:none">
+      <input type="file" id="file-groups" accept=".txt,text/plain" style="display:none">
     </section>
 
     <nav class="tabs">
@@ -57,10 +66,11 @@
     </section>
 
     <section id="tab-groups" class="tab-content">
-      <p>Edit the recognised section labels (one per line). Ranges like <code>Verse 1..30</code> are supported.</p>
+      <p>Edit the recognised section labels (one per line). Ranges like <code>Verse 1..30</code> are supported. <strong>Apply &amp; Remember</strong> uses them for exports and keeps them in this browser.</p>
       <textarea id="group-names" spellcheck="false"></textarea>
       <div class="btn-row">
-        <button id="btn-save-groups" class="btn btn-primary">Save Group Names</button>
+        <button id="btn-save-groups" class="btn btn-primary">Apply &amp; Remember</button>
+        <button id="btn-download-groups" class="btn">Download .txt</button>
       </div>
     </section>
 
@@ -69,6 +79,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
