@@ -3,16 +3,16 @@
 // - Pre-caches the Python modules / data used by Pyodide
 // - Runtime-caches the Pyodide CDN so the app works offline after first load
 
-const APP_CACHE = "songeditor-shell-v6";
-const DATA_CACHE = "songeditor-data-v2";
-const RUNTIME_CACHE = "songeditor-runtime-v2";
+const APP_CACHE = "songeditor-shell-v7";
+const DATA_CACHE = "songeditor-data-v3";
+const RUNTIME_CACHE = "songeditor-runtime-v3";
 const ALL_CACHES = [APP_CACHE, DATA_CACHE, RUNTIME_CACHE];
 
 const SHELL = [
   "./",
   "./index.html",
   "./style.css",
-  "./app.js?v=9",
+  "./app.js?v=10",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -50,6 +50,7 @@ const DATA = [
   "./web_bridge.py",
   "./Template.pro",
   "./GroupNames.txt",
+  "./protobuf-4.24.4-cp312-cp312-pyodide_2024_0_wasm32.whl",
 ];
 
 self.addEventListener("install", (event) => {
@@ -81,17 +82,21 @@ self.addEventListener("activate", (event) => {
 });
 
 function isPyodide(url) {
-  return (
-    (url.hostname === "cdn.jsdelivr.net" || url.hostname === "unpkg.com") &&
-    url.pathname.includes("/pyodide/")
-  );
+  if (url.hostname === "cdn.jsdelivr.net") {
+    return url.pathname.includes("/pyodide/");
+  }
+  if (url.hostname === "unpkg.com") {
+    return url.pathname.toLowerCase().includes("pyodide");
+  }
+  return false;
 }
 
 function isDataFile(url) {
   return (
     url.pathname.endsWith(".py") ||
     url.pathname.endsWith(".pro") ||
-    url.pathname.endsWith(".txt")
+    url.pathname.endsWith(".txt") ||
+    url.pathname.endsWith(".whl")
   );
 }
 

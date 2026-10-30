@@ -1,6 +1,12 @@
 "use strict";
 
-const PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
+const PYODIDE_VERSION = "0.26.4";
+// Tried in order; the first one that loads wins.
+const PYODIDE_CDNS = [
+  { name: "jsdelivr", base: `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/` },
+  { name: "unpkg", base: `https://unpkg.com/pyodide@${PYODIDE_VERSION}/` },
+];
+const PROTOBUF_WHEEL = "protobuf-4.24.4-cp312-cp312-pyodide_2024_0_wasm32.whl";
 
 const $ = (id) => document.getElementById(id);
 
@@ -15,6 +21,7 @@ const state = {
   groups: null,     // { name, builtin }
   builtinTemplateB64: "",
   builtinGroupsText: "",
+  cdn: null,        // CDN entry that served Pyodide
 };
 
 const ui = {
@@ -32,6 +39,7 @@ const ui = {
   fileGroups: $("file-groups"),
   fileInfo: $("file-info"),
   btnDownloadGroups: $("btn-download-groups"),
+  btnRetry: $("btn-retry"),
   fileOpen: $("file-open"),
   translateGrid: $("translate-grid"),
   singleNumbers: $("single-numbers"),
@@ -348,12 +356,14 @@ function switchTab(tabName) {
 
 async function boot() {
   setStatus("Loading Python runtime…");
+  hideRetry();
   try {
-    await loadScript(PYODIDE_BASE + "pyodide.js");
-    const pyodide = await loadPyodide({ indexURL: PYODIDE_BASE });
+    const runtime = await loadPyodideRuntime();
+    const pyodide = runtime.pyodide;
     state.pyodide = pyodide;
+    state.cdn = runtime.cdn;
     setStatus("Installing protobuf…");
-    await pyodide.loadPackage("protobuf");
+    await loadProtobuf(pyodide, runtime.cdn);
     setStatus("Loading app files…");
     // Fetch Python files
     const files = [
@@ -506,15 +516,62 @@ def _init(codes):
   } catch (err) {
     console.error(err);
     setStatus("Load failed: " + err.message);
+    showRetry();
   }
+}
+
+// Try each CDN until one provides a working Pyodide runtime.
+async function loadPyodideRuntime() {
+  let lastError = null;
+  for (const cdn of PYODIDE_CDNS) {
+    try {
+      setStatus("Loading Python runtime (" + cdn.name + ")…");
+      await loadScript(cdn.base + "pyodide.js");
+      const pyodide = await loadPyodide({ indexURL: cdn.base });
+      console.info("Pyodide " + PYODIDE_VERSION + " loaded from " + cdn.name);
+      return { pyodide, cdn };
+    } catch (e) {
+      lastError = e;
+      console.warn("Pyodide failed on " + cdn.name + ":", e);
+    }
+  }
+  const names = PYODIDE_CDNS.map((c) => c.name).join(", ");
+  throw new Error(
+    "could not reach any Python runtime CDN (" + names + ")" +
+    (lastError ? " — " + lastError.message : "")
+  );
+}
+
+// The wheel is shipped with the app, so protobuf does not depend on a CDN.
+// Falls back to the CDN package if the local copy is missing.
+async function loadProtobuf(pyodide, cdn) {
+  const wheelUrl = new URL(PROTOBUF_WHEEL, location.href).href;
+  try {
+    await pyodide.loadPackage(wheelUrl);
+    return;
+  } catch (e) {
+    console.warn("Local protobuf wheel failed, trying " + cdn.name + " package:", e);
+  }
+  await pyodide.loadPackage("protobuf");
+}
+
+function showRetry() {
+  if (ui.btnRetry) ui.btnRetry.hidden = false;
+}
+
+function hideRetry() {
+  if (ui.btnRetry) ui.btnRetry.hidden = true;
 }
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const s = document.createElement("script");
     s.src = src;
-    s.onload = resolve;
-    s.onerror = () => reject(new Error("Cannot download " + src));
+    s.onload = () => resolve(s);
+    s.onerror = () => {
+      s.remove();
+      reject(new Error("Cannot download " + src));
+    };
     document.head.appendChild(s);
   });
 }
@@ -860,6 +917,9 @@ buildTranslateGrid = function() {
 const _origSwitchTab = switchTab;
 // (switchTab defined later; patch after load via DOMContentLoaded? Instead patch at end of boot not needed.)
 
+
+// Retry the whole boot after a load failure
+if (ui.btnRetry) ui.btnRetry.addEventListener("click", () => location.reload());
 
 // Init
 document.addEventListener("DOMContentLoaded", () => {

@@ -15,6 +15,7 @@ in your browser via [Pyodide](https://pyodide.org) + `protobuf`, generating
 - **Custom Template.pro / GroupNames.txt** — pick your own files; they are remembered in this browser and used for every export
 - **Open / Save** — load `.json` backups, download `.pro` + `.json`
 - **Offline** — works without internet after first visit (service worker)
+- **Resilient loading** — Pyodide comes from jsdelivr, falling back to unpkg if it fails; the protobuf wheel ships with the app so it never depends on a CDN
 - **Installable** — add to home screen
 
 ## How it works
